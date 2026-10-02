@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countUsers = `-- name: CountUsers :one
@@ -18,4 +20,15 @@ func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const getUserName = `-- name: GetUserName :one
+SELECT full_name FROM users WHERE id = $1
+`
+
+func (q *Queries) GetUserName(ctx context.Context, id pgtype.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getUserName, id)
+	var full_name string
+	err := row.Scan(&full_name)
+	return full_name, err
 }
