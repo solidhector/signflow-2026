@@ -1,11 +1,13 @@
-// Command signflow is the HTTP server entrypoint. On startup it loads config,
-// builds the Chi router, and serves with graceful shutdown. Lesson 3 adds the
-// database (migrations + a connection pool) between config and serving.
+// Command signflow is the HTTP server entrypoint.
+//
+// On startup it: loads config, runs embedded goose migrations, opens a pgx
+// pool, builds the Chi router, and serves with graceful shutdown.
 package main
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -14,7 +16,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
+
+	migrations "github.com/programuoki/signflow/db"
 	"github.com/programuoki/signflow/internal/config"
+	"github.com/programuoki/signflow/internal/db"
 	"github.com/programuoki/signflow/internal/handlers"
 	"github.com/programuoki/signflow/static"
 )
@@ -34,9 +41,24 @@ func run(log *slog.Logger) error {
 	}
 	log.Info("starting signflow", "env", cfg.Env, "port", cfg.Port, "base_url", cfg.BaseURL)
 
-	h := handlers.New(cfg, log)
+	ctx := context.Background()
 
-	// The assets live under static/assets; expose that subtree at /static.
+	// 1. Migrate. We use a throwaway database/sql handle (pgx stdlib driver)
+	//    because goose speaks database/sql, then hand the app a pgx pool.
+	if err := runMigrations(cfg.DatabaseURL, log); err != nil {
+		return err
+	}
+
+	// 2. Connect the application pool the sqlc queries run against.
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+
+	queries := db.New(pool)
+	h := handlers.New(cfg, queries, log)
+
 	staticFS, err := fs.Sub(static.FS, "assets")
 	if err != nil {
 		return err
@@ -50,7 +72,7 @@ func run(log *slog.Logger) error {
 
 	// Graceful shutdown: stop accepting on SIGINT/SIGTERM, then drain in-flight
 	// requests for up to 15s before exiting.
-	shutdownCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	shutdownCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	go func() {
@@ -68,3 +90,32 @@ func run(log *slog.Logger) error {
 	defer cancel()
 	return srv.Shutdown(timeout)
 }
+
+// runMigrations applies all pending goose migrations from the embedded FS.
+func runMigrations(databaseURL string, log *slog.Logger) error {
+	sqlDB, err := goose.OpenDBWithDriver("pgx", databaseURL)
+	if err != nil {
+		return err
+	}
+	defer sqlDB.Close()
+
+	goose.SetBaseFS(migrations.FS)
+	goose.SetLogger(gooseLogger{log})
+	if err := goose.SetDialect("postgres"); err != nil {
+		return err
+	}
+	return goose.Up(sqlDB, "migrations")
+}
+
+// gooseLogger adapts slog to goose's logger interface.
+type gooseLogger struct{ log *slog.Logger }
+
+func (g gooseLogger) Fatalf(format string, v ...interface{}) {
+	g.log.Error("goose", "msg", fmt.Sprintf(format, v...))
+}
+func (g gooseLogger) Printf(format string, v ...interface{}) {
+	g.log.Info("goose", "msg", fmt.Sprintf(format, v...))
+}
+
+// ensure the pgx stdlib driver is registered for goose.OpenDBWithDriver("pgx", ...)
+var _ = stdlib.GetDefaultDriver

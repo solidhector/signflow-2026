@@ -7,28 +7,42 @@ import (
 	"net/http"
 
 	"github.com/programuoki/signflow/internal/config"
+	"github.com/programuoki/signflow/internal/db"
 	"github.com/programuoki/signflow/internal/web"
 )
 
 // Handlers bundles the dependencies every handler needs. Constructed once in
-// main; its methods are registered on the router. It gains fields as the app
-// grows (a database in lesson 3, sessions in lesson 4, ...).
+// main; its methods are registered on the router. It gains a Queries field here
+// (the database); sessions and more arrive in later lessons.
 type Handlers struct {
-	Cfg config.Config
-	Log *slog.Logger
+	Cfg     config.Config
+	Queries *db.Queries
+	Log     *slog.Logger
 }
 
-func New(cfg config.Config, log *slog.Logger) *Handlers {
-	return &Handlers{Cfg: cfg, Log: log}
+func New(cfg config.Config, q *db.Queries, log *slog.Logger) *Handlers {
+	return &Handlers{Cfg: cfg, Queries: q, Log: log}
 }
 
-// Home renders the landing page from a type-safe Templ template.
+// Home renders the landing page, including a live user count read from Postgres
+// — proof the whole stack is wired end to end.
 func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
-	render(w, r, http.StatusOK, web.Home())
+	count, err := h.Queries.CountUsers(r.Context())
+	if err != nil {
+		h.Log.Error("count users", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	render(w, r, http.StatusOK, web.Home(count))
 }
 
-// Health is a plain-text liveness probe for Railway / uptime checks.
+// Health is a liveness probe for Railway / uptime checks. It also pings the DB,
+// so an unreachable database reports unhealthy rather than silently serving 500s.
 func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
+	if _, err := h.Queries.CountUsers(r.Context()); err != nil {
+		http.Error(w, "db unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	w.Header().Set("Content-Type", "text/plain")
 	_, _ = w.Write([]byte("ok"))
 }

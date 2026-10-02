@@ -4,19 +4,23 @@
 // zero setup. In production every value is expected to come from the
 // environment (Railway injects them). The struct GROWS as the app does — the
 // database URL arrives in lesson 3, the session secret in lesson 4, and so on.
-
 package config
 
-import "os"
+import (
+	"fmt"
+	"os"
+
+	"github.com/joho/godotenv"
+)
 
 type Config struct {
+	// DatabaseURL is a standard libpq/pgx connection string.
+	DatabaseURL string
 	// Port is the TCP port the HTTP server listens on. Railway sets $PORT.
 	Port string
-
 	// Env is "dev" or "prod". Later it flips cookie Secure flags and the email
 	// sender; for now it is just a label.
 	Env string
-
 	// BaseURL is the public origin used to build absolute links (in emails,
 	// later). In dev it is http://localhost:PORT.
 	BaseURL string
@@ -28,14 +32,20 @@ func (c Config) IsProd() bool { return c.Env == "prod" }
 
 // Load reads configuration, applying dev-friendly defaults.
 func Load() (Config, error) {
-	cfg := Config{
-		Port:    getenv("PORT", "8080"),
-		Env:     getenv("APP_ENV", "dev"),
-		BaseURL: os.Getenv("BASE_URL"),
-	}
+	_ = godotenv.Load() // best-effort; load a local .env if present, else shrug
 
+	cfg := Config{
+		DatabaseURL: getenv("DATABASE_URL", "postgres://postgres@localhost:5432/signflow?sslmode=disable"),
+		Port:        getenv("PORT", "8080"),
+		Env:         getenv("APP_ENV", "dev"),
+		BaseURL:     os.Getenv("BASE_URL"),
+	}
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "http://localhost:" + cfg.Port
+	}
+
+	if cfg.IsProd() && os.Getenv("BASE_URL") == "" {
+		return Config{}, fmt.Errorf("BASE_URL is required in production")
 	}
 
 	return cfg, nil

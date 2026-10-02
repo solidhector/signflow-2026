@@ -1,7 +1,10 @@
 package web
-// Home is the public landing page. Lesson 3 adds a live user count read from
-// Postgres, to prove the whole stack is wired end to end.
-templ Home() {
+
+import "strconv"
+
+// Home is the public landing page. It also proves the full stack is wired: the
+// user count comes from Postgres via sqlc.
+templ Home(userCount int64) {
 	@Layout("Home") {
 		<section class="hero">
 			<h1>Sign documents. Keep the receipts.</h1>
@@ -19,7 +22,12 @@ templ Home() {
 			<ul class="checklist">
 				<li>✅ Chi router + middleware</li>
 				<li>✅ Templ rendering this page</li>
+				<li>✅ Postgres connected via pgx</li>
+				<li>✅ goose migrations applied</li>
 			</ul>
+			<p class="muted">
+				Registered users in the database: <strong>{ strconv.FormatInt(userCount, 10) }</strong>
+			</p>
 		</section>
 	}
 }
