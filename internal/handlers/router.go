@@ -25,5 +25,9 @@ func (h *Handlers) Router(staticFS fs.FS) http.Handler {
 	r.Get("/", h.Home)
 	r.Get("/healthz", h.Health)
 
+	// Auth routes (login/logout arrive in lesson 5).
+	r.Get("/register", h.RegisterForm)
+	r.Post("/register", h.Register)
+
 	return r
 }

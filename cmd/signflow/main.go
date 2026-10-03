@@ -23,6 +23,7 @@ import (
 	"github.com/programuoki/signflow/internal/config"
 	"github.com/programuoki/signflow/internal/db"
 	"github.com/programuoki/signflow/internal/handlers"
+	"github.com/programuoki/signflow/internal/session"
 	"github.com/programuoki/signflow/static"
 )
 
@@ -57,7 +58,8 @@ func run(log *slog.Logger) error {
 	defer pool.Close()
 
 	queries := db.New(pool)
-	h := handlers.New(cfg, queries, log)
+	sessions := session.NewManager(queries, cfg.IsProd())
+	h := handlers.New(cfg, queries, sessions, log)
 
 	staticFS, err := fs.Sub(static.FS, "assets")
 	if err != nil {
