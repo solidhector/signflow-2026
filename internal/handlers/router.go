@@ -8,8 +8,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-// Router builds the Chi router with the base middleware stack and serves the
-// embedded static assets. Auth-protected route groups are added in lesson 5.
+// Router builds the Chi router with the middleware stack and all routes.
 func (h *Handlers) Router(staticFS fs.FS) http.Handler {
 	r := chi.NewRouter()
 
@@ -19,15 +18,29 @@ func (h *Handlers) Router(staticFS fs.FS) http.Handler {
 	r.Use(middleware.Logger)    // request logging
 	r.Use(middleware.Recoverer) // turn panics into 500s instead of crashing
 
+	// Resolve the session cookie into the request context for every route.
+	r.Use(h.LoadUser)
+
 	// Static assets (CSS, vendored htmx), served from the embedded FS.
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
+	// Public routes.
 	r.Get("/", h.Home)
 	r.Get("/healthz", h.Health)
 
-	// Auth routes (login/logout arrive in lesson 5).
+	// Auth routes.
 	r.Get("/register", h.RegisterForm)
 	r.Post("/register", h.Register)
+	r.Get("/login", h.LoginForm)
+	r.Post("/login", h.Login)
+	r.Post("/logout", h.Logout)
+
+	// Authenticated routes.
+	r.Group(func(pr chi.Router) {
+		pr.Use(h.RequireAuth)
+		pr.Get("/dashboard", h.Dashboard)
+		pr.Get("/account", h.Account)
+	})
 
 	return r
 }

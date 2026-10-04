@@ -26,16 +26,19 @@ func New(cfg config.Config, q *db.Queries, sessions *session.Manager, log *slog.
 	return &Handlers{Cfg: cfg, Queries: q, Sessions: sessions, Log: log}
 }
 
-// Home renders the landing page, including a live user count read from Postgres
-// — proof the whole stack is wired end to end.
+// Home renders the landing page. A signed-in visitor is sent to their dashboard;
+// otherwise we show the public landing page with a live user count.
 func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
-	count, err := h.Queries.CountUsers(r.Context())
-	if err != nil {
-		h.Log.Error("count users", "err", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+	if _, ok := UserFrom(r.Context()); ok {
+		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 		return
 	}
-	render(w, r, http.StatusOK, web.Home(count))
+	count, err := h.Queries.CountUsers(r.Context())
+	if err != nil {
+		h.serverError(w, r, "count users", err)
+		return
+	}
+	render(w, r, http.StatusOK, web.Home(h.nav(r), count))
 }
 
 // Health is a liveness probe for Railway / uptime checks. It also pings the DB,
@@ -47,6 +50,10 @@ func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/plain")
 	_, _ = w.Write([]byte("ok"))
+}
+
+func (h *Handlers) Account(w http.ResponseWriter, r *http.Request) {
+	render(w, r, http.StatusOK, web.Account(h.nav(r)))
 }
 
 // serverError logs the underlying error and returns a generic 500 to the client.

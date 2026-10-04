@@ -1,12 +1,7 @@
 package web
 
-// Now, what is a Nav? How should I know...
-type Nav struct {
-    UserEmail string
-}
-
-templ Register(email, errMsg string) {
-	@Layout("Register") {
+templ Register(nav Nav, email, errMsg string) {
+	@Layout("Register", nav) {
 		<div class="card auth-card">
 			<h1>Create your account</h1>
 			if errMsg != "" {
@@ -28,6 +23,29 @@ templ Register(email, errMsg string) {
 				<button class="btn btn-primary" type="submit">Create account</button>
 			</form>
 			<p class="muted">Already have an account? <a href="/login">Log in</a>.</p>
+		</div>
+	}
+}
+
+templ Login(nav Nav, email, errMsg string) {
+	@Layout("Log in", nav) {
+		<div class="card auth-card">
+			<h1>Log in</h1>
+			if errMsg != "" {
+				<div class="flash flash-error">{ errMsg }</div>
+			}
+			<form method="post" action="/login" class="form">
+				<div class="field">
+					<label for="email">Email</label>
+					<input id="email" name="email" type="email" value={ email } required autofocus/>
+				</div>
+				<div class="field">
+					<label for="password">Password</label>
+					<input id="password" name="password" type="password" required/>
+				</div>
+				<button class="btn btn-primary" type="submit">Log in</button>
+			</form>
+			<p class="muted">No account? <a href="/register">Register</a>.</p>
 		</div>
 	}
 }
