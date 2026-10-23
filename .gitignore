@@ -11,3 +11,7 @@
 
 .idea/
 *.iml
+
+# local files
+uploads/*
+!uploads/.gitkeep
