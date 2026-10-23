@@ -6,10 +6,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/gorilla/csrf"
 )
 
 // Router builds the Chi router with the middleware stack and all routes.
-func (h *Handlers) Router(staticFS fs.FS) http.Handler {
+//
+// csrfKey must be 32 bytes; it authenticates the CSRF token cookie.
+func (h *Handlers) Router(staticFS fs.FS, csrfKey []byte) http.Handler {
 	r := chi.NewRouter()
 
 	// Base middleware, outermost first.
@@ -17,6 +20,31 @@ func (h *Handlers) Router(staticFS fs.FS) http.Handler {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)    // request logging
 	r.Use(middleware.Recoverer) // turn panics into 500s instead of crashing
+
+	// In dev we serve plaintext HTTP on localhost. gorilla/csrf otherwise assumes
+	// TLS and enforces a strict Origin/Referer check that rejects http:// origins.
+	// Marking dev requests plaintext relaxes that ONE check while keeping the
+	// token check. Production (HTTPS at Railway's edge) is NOT marked, so it keeps
+	// the full strict-origin protection.
+	if !h.Cfg.IsProd() {
+		r.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				next.ServeHTTP(w, csrf.PlaintextHTTPRequest(req))
+			})
+		})
+	}
+
+	// CSRF: enforced on all unsafe methods (POST/PUT/PATCH/DELETE). Safe methods
+	// pass through but get the token cookie set so forms can embed it. The field
+	// name matches the hidden input our templates render.
+	csrfMW := csrf.Protect(
+		csrfKey,
+		csrf.Secure(h.Cfg.IsProd()),
+		csrf.Path("/"),
+		csrf.SameSite(csrf.SameSiteLaxMode),
+		csrf.FieldName("gorilla.csrf.Token"),
+	)
+	r.Use(csrfMW)
 
 	// Resolve the session cookie into the request context for every route.
 	r.Use(h.LoadUser)
@@ -34,12 +62,15 @@ func (h *Handlers) Router(staticFS fs.FS) http.Handler {
 	r.Get("/login", h.LoginForm)
 	r.Post("/login", h.Login)
 	r.Post("/logout", h.Logout)
+	r.Get("/forgot", h.ForgotForm)
+	r.Post("/forgot", h.Forgot)
+	r.Get("/reset/{token}", h.ResetForm)
+	r.Post("/reset/{token}", h.Reset)
 
 	// Authenticated routes.
 	r.Group(func(pr chi.Router) {
 		pr.Use(h.RequireAuth)
 		pr.Get("/dashboard", h.Dashboard)
-		pr.Get("/account", h.Account)
 	})
 
 	return r

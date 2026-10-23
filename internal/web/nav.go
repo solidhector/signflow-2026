@@ -1,9 +1,10 @@
 package web
 
 // Nav carries the per-request bits the layout header needs: whether someone is
-// signed in, and their email. A CSRF token joins it in lesson 6, once forms are
-// protected.
+// signed in, their email, and the CSRF token (for the logout form, which is a
+// POST, and for any other form the page renders).
 type Nav struct {
-	LoggedIn bool
-	Email    string
+	LoggedIn  bool
+	Email     string
+	CSRFToken string
 }

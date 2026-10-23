@@ -17,10 +17,11 @@ templ Layout(title string, nav Nav) {
 			<header class="topbar">
 				<a href="/" class="brand">✍️ SignFlow</a>
 				<nav class="topnav">
-					if nav.LoggedIn {
+                        if nav.LoggedIn {
 						<a href="/dashboard">Dashboard</a>
 						<span class="who">{ nav.Email }</span>
 						<form method="post" action="/logout" class="inline-form">
+						    <input type="hidden" name="gorilla.csrf.Token" value={ nav.CSRFToken }/>
 							<button type="submit" class="btn btn-ghost btn-sm">Log out</button>
 						</form>
 					} else {
