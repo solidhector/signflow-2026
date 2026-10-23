@@ -1,18 +1,60 @@
 package web
 
-// Dashboard is the signed-in landing page. This lesson shows just enough to
-// prove auth works; the documents phase fills it with the owner's documents.
-templ Dashboard(nav Nav) {
-	@Layout("Dashboard", nav) {
-		<section class="hero">
-			<h1>Welcome back</h1>
-			<p class="lead">You're signed in as <strong>{ nav.Email }</strong>.</p>
-		</section>
-		<section class="card">
-			<h2>Your documents</h2>
-			<p class="muted">Document upload arrives in the documents phase. For now,
-				auth is live: your session is stored server-side and this page is
-				protected by <code>RequireAuth</code>.</p>
-		</section>
-	}
+// Dashboard is the signed-in home: an upload card plus the owner's document list.
+templ Dashboard(nav Nav, docs []DocumentView) {
+    @Layout("Dashboard", nav) {
+       <section class="hero">
+          <h1>Your documents</h1>
+          <p class="lead">Upload a file, then invite signers. Any file type works —
+             SignFlow hashes it on upload so you can prove it hasn't changed.</p>
+       </section>
+       <section class="card upload-card">
+          <h2>Upload a document</h2>
+          <form
+              id="upload-form"
+              method="post"
+              action="/documents"
+              enctype="multipart/form-data"
+              hx-post="/documents"
+              hx-encoding="multipart/form-data"
+              hx-target="#doc-list"
+              hx-swap="outerHTML"
+              hx-on::after-request="if(event.detail.successful){this.reset();}"
+          >
+              @authCSRF(nav.CSRFToken)
+              <div class="upload-row">
+                  <input type="file" name="file" required/>
+                  <button class="btn btn-primary" type="submit">Upload</button>
+              </div>
+              <progress id="upload-progress" value="0" max="100"></progress>
+          </form>
+          <p id="upload-error" class="flash flash-error" hidden></p>
+       </section>
+       @DocumentList(docs)
+       <script>
+          (function () {
+             var form = document.getElementById('upload-form');
+             var prog = document.getElementById('upload-progress');
+             var err = document.getElementById('upload-error');
+             if (!form) return;
+             form.addEventListener('htmx:xhr:loadstart', function () {
+                prog.classList.add('active');
+                prog.value = 0;
+                err.hidden = true;
+             });
+             form.addEventListener('htmx:xhr:progress', function (e) {
+                if (e.detail.lengthComputable) {
+                   prog.value = (e.detail.loaded / e.detail.total) * 100;
+                }
+             });
+             form.addEventListener('htmx:afterRequest', function (e) {
+                prog.classList.remove('active');
+                if (!e.detail.successful) {
+                   err.textContent = 'Upload failed (file too large, or an error occurred).';
+                   err.hidden = false;
+                }
+             });
+          })();
+       </script>
+    }
 }

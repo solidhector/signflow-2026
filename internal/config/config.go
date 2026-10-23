@@ -26,10 +26,18 @@ type Config struct {
 	BaseURL string
 	// SessionSecret authenticates the CSRF token cookie. Must be set in prod.
 	SessionSecret string
+
 	// Email configuration. EmailSender is "console" (default) or "resend".
 	EmailSender  string
 	ResendAPIKey string
 	EmailFrom    string
+
+	// UploadDir is where document files are stored on the local filesystem.
+	// NOTE: Railway's container filesystem is ephemeral — see the deploy lesson.
+	// In prod, point this at a mounted Railway Volume (or swap in object storage).
+	UploadDir string
+	// MaxUploadBytes caps a single upload.
+	MaxUploadBytes int64
 }
 
 // IsProd reports whether we are running in production. One flag, read in many
@@ -41,11 +49,16 @@ func Load() (Config, error) {
 	_ = godotenv.Load() // best-effort; load a local .env if present, else shrug
 
 	cfg := Config{
-		DatabaseURL:   getenv("DATABASE_URL", "postgres://postgres@localhost:5432/signflow?sslmode=disable"),
-		Port:          getenv("PORT", "8080"),
-		Env:           getenv("APP_ENV", "dev"),
-		BaseURL:       os.Getenv("BASE_URL"),
-		SessionSecret: os.Getenv("SESSION_SECRET"),
+		DatabaseURL:    getenv("DATABASE_URL", "postgres://postgres@localhost:5432/signflow?sslmode=disable"),
+		Port:           getenv("PORT", "8080"),
+		Env:            getenv("APP_ENV", "dev"),
+		BaseURL:        os.Getenv("BASE_URL"),
+		SessionSecret:  os.Getenv("SESSION_SECRET"),
+		EmailSender:    getenv("EMAIL_SENDER", "console"),
+		ResendAPIKey:   os.Getenv("RESEND_API_KEY"),
+		EmailFrom:      os.Getenv("EMAIL_FROM"),
+		UploadDir:      getenv("UPLOAD_DIR", "uploads"),
+		MaxUploadBytes: 25 << 20, // 25 MiB
 	}
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "http://localhost:" + cfg.Port
@@ -54,7 +67,6 @@ func Load() (Config, error) {
 	if cfg.IsProd() && os.Getenv("BASE_URL") == "" {
 		return Config{}, fmt.Errorf("BASE_URL is required in production")
 	}
-
 	if cfg.IsProd() && cfg.SessionSecret == "" {
 		return Config{}, fmt.Errorf("SESSION_SECRET is required in production")
 	}

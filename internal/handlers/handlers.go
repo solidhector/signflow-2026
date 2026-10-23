@@ -10,22 +10,23 @@ import (
 	"github.com/programuoki/signflow/internal/db"
 	"github.com/programuoki/signflow/internal/email"
 	"github.com/programuoki/signflow/internal/session"
+	"github.com/programuoki/signflow/internal/storage"
 	"github.com/programuoki/signflow/internal/web"
 )
 
 // Handlers bundles the dependencies every handler needs. Constructed once in
-// main; its methods are registered on the router. It gains a Sessions manager
-// here; the mailer arrives in lesson 7.
+// main; its methods are registered on the router.
 type Handlers struct {
 	Cfg      config.Config
 	Queries  *db.Queries
 	Sessions *session.Manager
 	Mailer   email.Sender
+	Store    storage.Store
 	Log      *slog.Logger
 }
 
-func New(cfg config.Config, q *db.Queries, sessions *session.Manager, mailer email.Sender, log *slog.Logger) *Handlers {
-	return &Handlers{Cfg: cfg, Queries: q, Sessions: sessions, Mailer: mailer, Log: log}
+func New(cfg config.Config, q *db.Queries, sessions *session.Manager, mailer email.Sender, store storage.Store, log *slog.Logger) *Handlers {
+	return &Handlers{Cfg: cfg, Queries: q, Sessions: sessions, Mailer: mailer, Store: store, Log: log}
 }
 
 // Home renders the landing page. A signed-in visitor is sent to their dashboard;
@@ -52,10 +53,6 @@ func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/plain")
 	_, _ = w.Write([]byte("ok"))
-}
-
-func (h *Handlers) Account(w http.ResponseWriter, r *http.Request) {
-	render(w, r, http.StatusOK, web.Account(h.nav(r)))
 }
 
 // serverError logs the underlying error and returns a generic 500 to the client.

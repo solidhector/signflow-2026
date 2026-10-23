@@ -1,0 +1,37 @@
+package web
+
+// DocumentList is the swappable partial that HTMX refreshes after an upload.
+// Its id="doc-list" is the hx-target the upload form swaps.
+templ DocumentList(docs []DocumentView) {
+	<section id="doc-list" class="card">
+		<h2>Documents</h2>
+		if len(docs) == 0 {
+			<p class="muted">No documents yet. Upload one above to get started.</p>
+		} else {
+			<table class="table">
+				<thead>
+					<tr>
+						<th>Name</th>
+						<th>Status</th>
+						<th>Size</th>
+						<th>Uploaded</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, d := range docs {
+						@documentRow(d)
+					}
+				</tbody>
+			</table>
+		}
+	</section>
+}
+
+templ documentRow(d DocumentView) {
+	<tr>
+		<td>{ d.Filename }</td>
+		<td><span class={ "pill", "pill-" + d.Status }>{ d.Status }</span></td>
+		<td>{ d.SizeHuman }</td>
+		<td>{ d.CreatedAt }</td>
+	</tr>
+}

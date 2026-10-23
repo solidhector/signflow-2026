@@ -8,9 +8,8 @@ package web
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// Dashboard is the signed-in landing page. This lesson shows just enough to
-// prove auth works; the documents phase fills it with the owner's documents.
-func Dashboard(nav Nav) templ.Component {
+// Dashboard is the signed-in home: an upload card plus the owner's document list.
+func Dashboard(nav Nav, docs []DocumentView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -43,20 +42,23 @@ func Dashboard(nav Nav) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<section class=\"hero\"><h1>Welcome back</h1><p class=\"lead\">You're signed in as <strong>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<section class=\"hero\"><h1>Your documents</h1><p class=\"lead\">Upload a file, then invite signers. Any file type works — SignFlow hashes it on upload so you can prove it hasn't changed.</p></section><section class=\"card upload-card\"><h2>Upload a document</h2><form id=\"upload-form\" method=\"post\" action=\"/documents\" enctype=\"multipart/form-data\" hx-post=\"/documents\" hx-encoding=\"multipart/form-data\" hx-target=\"#doc-list\" hx-swap=\"outerHTML\" hx-on::after-request=\"if(event.detail.successful){this.reset();}\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var3 string
-			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(nav.Email)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/dashboard.templ`, Line: 9, Col: 58}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
+			templ_7745c5c3_Err = authCSRF(nav.CSRFToken).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</strong>.</p></section><section class=\"card\"><h2>Your documents</h2><p class=\"muted\">Document upload arrives in the documents phase. For now, auth is live: your session is stored server-side and this page is protected by <code>RequireAuth</code>.</p></section>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"upload-row\"><input type=\"file\" name=\"file\" required> <button class=\"btn btn-primary\" type=\"submit\">Upload</button></div><progress id=\"upload-progress\" value=\"0\" max=\"100\"></progress></form><p id=\"upload-error\" class=\"flash flash-error\" hidden></p></section>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = DocumentList(docs).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " <script>\r\n          (function () {\r\n             var form = document.getElementById('upload-form');\r\n             var prog = document.getElementById('upload-progress');\r\n             var err = document.getElementById('upload-error');\r\n             if (!form) return;\r\n             form.addEventListener('htmx:xhr:loadstart', function () {\r\n                prog.classList.add('active');\r\n                prog.value = 0;\r\n                err.hidden = true;\r\n             });\r\n             form.addEventListener('htmx:xhr:progress', function (e) {\r\n                if (e.detail.lengthComputable) {\r\n                   prog.value = (e.detail.loaded / e.detail.total) * 100;\r\n                }\r\n             });\r\n             form.addEventListener('htmx:afterRequest', function (e) {\r\n                prog.classList.remove('active');\r\n                if (!e.detail.successful) {\r\n                   err.textContent = 'Upload failed (file too large, or an error occurred).';\r\n                   err.hidden = false;\r\n                }\r\n             });\r\n          })();\r\n       </script>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
